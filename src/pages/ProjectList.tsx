@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Calendar, ArrowRight, Trash2 } from 'lucide-react';
 import { useProjectStore } from '../store/useProjectStore';
-import { type Project, type ProjectStatus } from '../types';
+import { type Project, type ProjectStatus, type ExecutionItem } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 
 export default function ProjectList() {
     const { projects, addProject, deleteProject } = useProjectStore();
@@ -13,20 +13,39 @@ export default function ProjectList() {
         name: '',
         status: 'Proposal',
         startDate: format(new Date(), 'yyyy-MM-dd'),
-        endDate: format(new Date(), 'yyyy-MM-dd'),
+        endDate: format(addDays(new Date(), 365), 'yyyy-MM-dd'),
     });
 
     const handleCreate = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newProject.name) return;
 
-        addProject({
+        const projectId = crypto.randomUUID();
+        const defaultItems: ExecutionItem[] = [
+            { name: "계획", weight: 10 },
+            { name: "구축", weight: 60 },
+            { name: "검수", weight: 10 },
+            { name: "수정", weight: 10 },
+            { name: "테스트(QA)", weight: 5 },
+            { name: "최종데이터제작", weight: 5 },
+        ].map(item => ({
             id: crypto.randomUUID(),
+            projectId: projectId,
+            name: item.name,
+            status: 'Plan',
+            planDate: newProject.startDate!, // Default to project start
+            plannedQuantity: 0,
+            actualQuantity: 0,
+            weight: item.weight,
+        }));
+
+        addProject({
+            id: projectId,
             name: newProject.name,
             status: newProject.status as ProjectStatus,
             startDate: newProject.startDate!,
             endDate: newProject.endDate!,
-            items: [],
+            items: defaultItems,
         } as Project);
 
         setIsCreating(false);
@@ -34,7 +53,7 @@ export default function ProjectList() {
             name: '',
             status: 'Proposal',
             startDate: format(new Date(), 'yyyy-MM-dd'),
-            endDate: format(new Date(), 'yyyy-MM-dd'),
+            endDate: format(addDays(new Date(), 365), 'yyyy-MM-dd'),
         });
     };
 

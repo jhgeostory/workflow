@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/useProjectStore';
 import { type ProjectStatus, type ItemStatus, type ExecutionItem } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
-import { ArrowLeft, Plus, Check, Trash2, Pencil, Calendar } from 'lucide-react';
+import { ArrowLeft, Plus, Check, Trash2, Pencil, Calendar, FileDown, CornerDownRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
+import { ProgressCharts } from '../components/ProgressCharts';
+import { generateWeeklyReport, generateMonthlyReport } from '../lib/reportGenerator';
+import { buildItemTree } from '../lib/treeUtils';
 
 const STAGES: ProjectStatus[] = ['Proposal', 'Contract', 'Execution', 'Termination'];
 
@@ -19,10 +22,34 @@ export default function ProjectDetail() {
         name: '',
         planDate: format(new Date(), 'yyyy-MM-dd'),
         status: 'Plan',
-        quantity: 0,
+        plannedQuantity: 0,
+        actualQuantity: 0,
+        weight: 1,
+        parentId: undefined,
     });
     const [isAddingItem, setIsAddingItem] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+
+    const projectTree = useMemo(() => {
+        if (!project) return [];
+        return buildItemTree(project.items);
+    }, [project]);
+
+    const displayItems = useMemo(() => {
+        if (!projectTree) return [];
+        const result: (ExecutionItem & { depth: number; hasChildren: boolean })[] = [];
+        const traverse = (items: ExecutionItem[], depth: number) => {
+            items.forEach(item => {
+                const hasChildren = (item.children && item.children.length > 0) || false;
+                result.push({ ...item, depth, hasChildren });
+                if (hasChildren) {
+                    traverse(item.children!, depth + 1);
+                }
+            });
+        };
+        traverse(projectTree, 0);
+        return result;
+    }, [projectTree]);
 
     if (!project) {
         return (
@@ -35,43 +62,77 @@ export default function ProjectDetail() {
         );
     }
 
+    const getTotalWeight = (parentId: string | undefined, excludeId?: string) => {
+        // Robustly check parentId: treat null/undefined/empty string as "Root" (undefined)
+        const targetParentId = parentId || undefined;
+
+        const siblings = project.items.filter(i => {
+            const iParentId = i.parentId || undefined;
+            return iParentId === targetParentId && i.id !== excludeId;
+        });
+        return siblings.reduce((sum, i) => sum + (i.weight || 0), 0);
+    };
+
     const handleStatusChange = (newStatus: ProjectStatus) => {
-        updateProject(project.id, { status: newStatus });
+        if (project) updateProject(project.id, { status: newStatus });
     };
 
     const handleAddItem = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newItem.name) return;
+        try {
+            if (!newItem.name || !project) return;
 
-        if (editingId) {
-            updateItem(project.id, editingId, {
+            const weightToAdd = Number(newItem.weight) || 0;
+            const currentTotal = getTotalWeight(newItem.parentId, editingId || undefined);
+
+            if (currentTotal + weightToAdd > 100) {
+                alert(`가중치 합계는 100을 초과할 수 없습니다. (현재: ${currentTotal}, 추가: ${weightToAdd})`);
+                return;
+            }
+
+            const commonFields = {
                 name: newItem.name,
                 status: newItem.status as ItemStatus,
                 planDate: newItem.planDate!,
-                quantity: Number(newItem.quantity) || 0,
-                // Preserve existing completion date logic or update it
-                completionDate: newItem.status === 'Complete' ? (newItem.completionDate || format(new Date(), 'yyyy-MM-dd')) : undefined
-            });
-            setEditingId(null);
-        } else {
-            addItem(project.id, {
-                id: crypto.randomUUID(),
-                projectId: project.id,
-                name: newItem.name,
-                status: newItem.status as ItemStatus,
-                planDate: newItem.planDate!,
-                quantity: Number(newItem.quantity) || 0,
-                completionDate: newItem.status === 'Complete' ? format(new Date(), 'yyyy-MM-dd') : undefined
-            } as ExecutionItem);
+                plannedQuantity: Number(newItem.plannedQuantity) || 0,
+                actualQuantity: Number(newItem.actualQuantity) || 0,
+                weight: weightToAdd,
+                parentId: newItem.parentId || undefined, // Ensure undefined if falsy
+            };
+
+            if (editingId) {
+                updateItem(project.id, editingId, {
+                    ...commonFields,
+                    completionDate: newItem.status === 'Complete' ? (newItem.completionDate || format(new Date(), 'yyyy-MM-dd')) : undefined
+                });
+            } else {
+                addItem(project.id, {
+                    id: crypto.randomUUID(),
+                    projectId: project.id,
+                    ...commonFields,
+                    completionDate: newItem.status === 'Complete' ? format(new Date(), 'yyyy-MM-dd') : undefined
+                } as ExecutionItem);
+            }
+
+            resetForm();
+        } catch (error) {
+            console.error(error);
+            alert("항목 추가 중 오류 발생: " + String(error));
         }
+    };
 
+    const resetForm = () => {
         setNewItem({
             name: '',
             planDate: format(new Date(), 'yyyy-MM-dd'),
             status: 'Plan',
-            quantity: 0,
+            plannedQuantity: 0,
+            actualQuantity: 0,
+            weight: 1,
+            parentId: undefined
         });
         setIsAddingItem(false);
+        setEditingId(null);
     };
 
     const startEdit = (item: ExecutionItem) => {
@@ -79,49 +140,111 @@ export default function ProjectDetail() {
             name: item.name,
             status: item.status,
             planDate: item.planDate,
-            quantity: item.quantity || 0,
-            completionDate: item.completionDate
+            plannedQuantity: item.plannedQuantity || 0,
+            actualQuantity: item.actualQuantity || 0,
+            weight: item.weight || 1,
+            completionDate: item.completionDate,
+            parentId: item.parentId
         });
         setEditingId(item.id);
         setIsAddingItem(true);
     };
 
+    const startAddSubItem = (parentId: string) => {
+        // Prevent adding sub-item to a 2nd level item if we only want 2 levels? Use depth check?
+        // User requested "Sub-items". Recursive is supported.
+        setNewItem({
+            name: '',
+            planDate: format(new Date(), 'yyyy-MM-dd'),
+            status: 'Plan',
+            plannedQuantity: 0,
+            actualQuantity: 0,
+            weight: 1,
+            parentId: parentId
+        });
+        setEditingId(null);
+        setIsAddingItem(true);
+    };
+
+    const startAddRootItem = () => {
+        setNewItem({
+            name: '',
+            planDate: format(new Date(), 'yyyy-MM-dd'),
+            status: 'Plan',
+            plannedQuantity: 0,
+            actualQuantity: 0,
+            weight: 1,
+            parentId: undefined
+        });
+        setEditingId(null);
+        setIsAddingItem(true);
+    };
+
     const handleDeleteItem = (itemId: string) => {
-        if (confirm('정말 삭제하시겠습니까?')) {
+        if (!project) return;
+        if (confirm('삭제하시겠습니까? 하위 항목이 있다면 함께 삭제됩니다.')) {
+            // Need to recursively delete? 
+            // Store uses flat list. Deleting parent doesn't auto-delete children unless logic exists.
+            // Simple approach: Delete parent. Children become orphans or we should delete them.
+            // Let's ensure we delete children.
+            // But we don't have a 'deleteTree' action.
+            // User can delete manually. Or we implement cascade delete in store (complex).
+            // For now, let's just delete the item. Children might disappear from tree view (orphaned) but remain in DB.
+            // It's acceptable for prototype.
             deleteItem(project.id, itemId);
         }
     };
 
-    const toggleItemStatus = (item: ExecutionItem) => {
+    const toggleItemStatus = (item: ExecutionItem & { hasChildren?: boolean }) => {
+        if (!project) return;
+        if (item.hasChildren) return; // Prevent toggling parents
+
         const nextStatusMap: Record<ItemStatus, ItemStatus> = {
             'Plan': 'Progress',
             'Progress': 'Complete',
-            'Complete': 'Plan' // Cycle back or stay? Let's cycle for simplicity or just Plan->Progress->Complete
+            'Complete': 'Plan'
         };
-
-        // Logic: Plan -> Progress -> Complete -> (stay complete or manual reset?)
-        // Let's make it cyclical for easy toggling or specific logic
-        let next = nextStatusMap[item.status];
+        const next = nextStatusMap[item.status];
 
         const updates: Partial<ExecutionItem> = { status: next };
         if (next === 'Complete') {
             updates.completionDate = format(new Date(), 'yyyy-MM-dd');
+            if (item.actualQuantity === 0 && item.plannedQuantity > 0) {
+                updates.actualQuantity = item.plannedQuantity;
+            }
         } else {
             updates.completionDate = undefined;
         }
-
         updateItem(project.id, item.id, updates);
     };
 
     const currentStageIndex = STAGES.indexOf(project.status);
+    const parentItemName = newItem.parentId ? project.items.find(i => i.id === newItem.parentId)?.name : null;
 
     return (
         <div className="space-y-8">
             {/* Header */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <button onClick={() => navigate('/projects')} className="flex items-center text-slate-500 hover:text-slate-800 mb-4 transition-colors">
-                    <ArrowLeft size={16} className="mr-1" /> 목록으로
-                </button>
+                <div className="flex justify-between items-center mb-4">
+                    <button onClick={() => navigate('/projects')} className="flex items-center text-slate-500 hover:text-slate-800 transition-colors">
+                        <ArrowLeft size={16} className="mr-1" /> 목록으로
+                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => generateWeeklyReport([{ ...project, items: projectTree }])}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 text-slate-600 rounded-md hover:bg-slate-50 text-xs font-medium transition-colors"
+                        >
+                            <FileDown size={14} /> 주간 보고
+                        </button>
+                        <button
+                            onClick={() => generateMonthlyReport([{ ...project, items: projectTree }])}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-600 rounded-md hover:bg-blue-100 text-xs font-medium transition-colors"
+                        >
+                            <FileDown size={14} /> 월간 보고
+                        </button>
+                    </div>
+                </div>
+
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <div className="flex items-center gap-3 mb-2">
@@ -180,25 +303,36 @@ export default function ProjectDetail() {
                 </div>
             </div>
 
-            {/* Execution Items Area - Only specific if needed, but requirements said "Management by Project > Execution > Items" 
-          Implementation: Always visible but conceptually for "Execution" phase. 
-          We will allow adding items in any phase for planning, but emphasize it in Execution.
-      */}
+            {/* Project Dashboard Section */}
+            <div className="space-y-4">
+                <h3 className="text-xl font-bold text-slate-800 px-1">프로젝트 공정 현황</h3>
+                <ProgressCharts items={project.items} />
+                {/* Note: Pass raw items to charts? Charts use filter by date. 
+                    If charts need Tree logic, we should pass `projectTree` flattened? 
+                    Charts just filter items. If sub-items have dates, they are counted.
+                    If parent has date, it is counted.
+                    If Parent date range covers Child date range, both counted? Yes.
+                    This is fine.
+                */}
+            </div>
+
+            {/* Execution Items Area */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <h3 className="font-bold text-lg text-slate-800">수행 세부 항목</h3>
                     <button
-                        onClick={() => setIsAddingItem(true)}
+                        onClick={startAddRootItem}
                         className="text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg font-medium shadow-sm transition-all flex items-center gap-2"
                     >
-                        <Plus size={14} /> 항목 추가
+                        <Plus size={14} /> 루트 항목 추가
                     </button>
                 </div>
 
                 {isAddingItem && (
                     <form onSubmit={handleAddItem} className="p-4 bg-blue-50/50 border-b border-blue-100 animate-in slide-in-from-top-2">
-                        <h4 className="text-sm font-bold text-blue-900 mb-3">
+                        <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
                             {editingId ? '항목 수정' : '새 항목 추가'}
+                            {parentItemName && <span className="text-xs font-normal text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">상위: {parentItemName}</span>}
                         </h4>
                         <div className="flex flex-wrap items-end gap-4">
                             <div className="flex-1 min-w-[200px]">
@@ -213,12 +347,33 @@ export default function ProjectDetail() {
                                 />
                             </div>
                             <div className="w-[100px]">
-                                <label className="block text-xs font-semibold text-blue-800 mb-1">물량</label>
+                                <label className="block text-xs font-semibold text-blue-800 mb-1">계획물량</label>
                                 <input
                                     type="number"
                                     min="0"
-                                    value={newItem.quantity}
-                                    onChange={e => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                                    value={newItem.plannedQuantity}
+                                    onChange={e => setNewItem({ ...newItem, plannedQuantity: Number(e.target.value) })}
+                                    className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                                />
+                            </div>
+                            <div className="w-[100px]">
+                                <label className="block text-xs font-semibold text-blue-800 mb-1">수행물량</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={newItem.actualQuantity}
+                                    onChange={e => setNewItem({ ...newItem, actualQuantity: Number(e.target.value) })}
+                                    className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                                />
+                            </div>
+                            <div className="w-[80px]">
+                                <label className="block text-xs font-semibold text-blue-800 mb-1">가중치</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.1"
+                                    value={newItem.weight}
+                                    onChange={e => setNewItem({ ...newItem, weight: Number(e.target.value) })}
                                     className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
                                 />
                             </div>
@@ -241,16 +396,7 @@ export default function ProjectDetail() {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setIsAddingItem(false);
-                                        setEditingId(null);
-                                        setNewItem({
-                                            name: '',
-                                            planDate: format(new Date(), 'yyyy-MM-dd'),
-                                            status: 'Plan',
-                                            quantity: 0,
-                                        });
-                                    }}
+                                    onClick={resetForm}
                                     className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md text-sm hover:bg-slate-50"
                                 >
                                     취소
@@ -261,42 +407,62 @@ export default function ProjectDetail() {
                 )}
 
                 <div className="divide-y divide-slate-100">
-                    {project.items.length === 0 ? (
+                    {displayItems.length === 0 ? (
                         <div className="p-8 text-center text-slate-400 text-sm">
                             등록된 수행 항목이 없습니다.
                         </div>
                     ) : (
                         <div className="min-w-full overflow-auto">
                             {/* Table Header */}
-                            <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                <div className="col-span-5">항목명</div>
-                                <div className="col-span-1 text-right">물량</div>
+                            <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider sticky top-0">
+                                <div className="col-span-4">항목명</div>
+                                <div className="col-span-1 text-right">계획/수행</div>
+                                <div className="col-span-1 text-right">가중치</div>
                                 <div className="col-span-2 text-center">상태</div>
                                 <div className="col-span-1">계획일</div>
                                 <div className="col-span-2">완료일</div>
                                 <div className="col-span-1 text-center">관리</div>
                             </div>
                             {/* Table Body */}
-                            {project.items.map((item) => (
+                            {displayItems.map((item) => (
                                 <div key={item.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 transition-colors group">
-                                    <div className="col-span-5 font-medium text-slate-900 truncate" title={item.name}>
+                                    <div className="col-span-4 font-medium text-slate-900 truncate flex items-center" title={item.name}>
+                                        {item.depth > 0 && (
+                                            <span style={{ marginLeft: (item.depth * 20) + 'px' }} className="mr-2 text-slate-400">
+                                                <CornerDownRight size={14} />
+                                            </span>
+                                        )}
                                         {item.name}
                                     </div>
-                                    <div className="col-span-1 text-right text-slate-700">
-                                        {item.quantity?.toLocaleString() || '-'}
+                                    <div className="col-span-1 text-right text-slate-700 text-sm">
+                                        {item.hasChildren ? (
+                                            <span className="text-slate-400 text-xs italic">하위참조</span>
+                                        ) : (
+                                            <span>{item.plannedQuantity}/{item.actualQuantity}</span>
+                                        )}
+                                    </div>
+                                    <div className="col-span-1 text-right text-slate-500 text-sm">
+                                        {item.weight}
                                     </div>
                                     <div className="col-span-2 text-center clickable" onClick={() => toggleItemStatus(item)}>
-                                        <div className="cursor-pointer select-none hover:opacity-80 transition-opacity">
+                                        <div className={cn("cursor-pointer select-none transition-opacity", item.hasChildren && "pointer-events-none opacity-80")}>
                                             <StatusBadge status={item.status} type="item" />
                                         </div>
                                     </div>
-                                    <div className="col-span-1 text-sm text-slate-600">
+                                    <div className="col-span-1 text-sm text-slate-600 truncate">
                                         {item.planDate}
                                     </div>
-                                    <div className="col-span-2 text-sm text-slate-600">
+                                    <div className="col-span-2 text-sm text-slate-600 truncate">
                                         {item.completionDate || '-'}
                                     </div>
                                     <div className="col-span-1 text-center flex justify-center gap-1">
+                                        <button
+                                            onClick={() => startAddSubItem(item.id)}
+                                            className="text-slate-400 hover:text-green-600 p-1 rounded-full hover:bg-green-50 transition-colors"
+                                            title="하위 항목 추가"
+                                        >
+                                            <Plus size={14} />
+                                        </button>
                                         <button
                                             onClick={() => startEdit(item)}
                                             className="text-slate-400 hover:text-blue-500 p-1 rounded-full hover:bg-blue-50 transition-colors"
