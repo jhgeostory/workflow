@@ -9,6 +9,7 @@ export interface ExecutionItem {
     status: ItemStatus;
     planDate: string; // ISO Date string
     completionDate?: string; // ISO Date string
+    quantity?: number; // Added field
     weight?: number; // Default 1
 }
 

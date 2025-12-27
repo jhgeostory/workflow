@@ -19,6 +19,7 @@ export default function ProjectDetail() {
         name: '',
         planDate: format(new Date(), 'yyyy-MM-dd'),
         status: 'Plan',
+        quantity: 0,
     });
     const [isAddingItem, setIsAddingItem] = useState(false);
 
@@ -47,6 +48,7 @@ export default function ProjectDetail() {
             name: newItem.name,
             status: newItem.status as ItemStatus,
             planDate: newItem.planDate!,
+            quantity: Number(newItem.quantity) || 0,
             completionDate: newItem.status === 'Complete' ? format(new Date(), 'yyyy-MM-dd') : undefined
         } as ExecutionItem);
 
@@ -54,6 +56,7 @@ export default function ProjectDetail() {
             name: '',
             planDate: format(new Date(), 'yyyy-MM-dd'),
             status: 'Plan',
+            quantity: 0,
         });
         setIsAddingItem(false);
     };
@@ -175,6 +178,16 @@ export default function ProjectDetail() {
                                     placeholder="할 일을 입력하세요"
                                 />
                             </div>
+                            <div className="w-[100px]">
+                                <label className="block text-xs font-semibold text-blue-800 mb-1">물량</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={newItem.quantity}
+                                    onChange={e => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                                    className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                                />
+                            </div>
                             <div className="w-[150px]">
                                 <label className="block text-xs font-semibold text-blue-800 mb-1">계획일</label>
                                 <input
@@ -214,8 +227,9 @@ export default function ProjectDetail() {
                             {/* Table Header */}
                             <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                                 <div className="col-span-5">항목명</div>
+                                <div className="col-span-1 text-right">물량</div>
                                 <div className="col-span-2 text-center">상태</div>
-                                <div className="col-span-2">계획일</div>
+                                <div className="col-span-1">계획일</div>
                                 <div className="col-span-2">완료일</div>
                                 <div className="col-span-1 text-center">관리</div>
                             </div>
@@ -225,12 +239,15 @@ export default function ProjectDetail() {
                                     <div className="col-span-5 font-medium text-slate-900 truncate" title={item.name}>
                                         {item.name}
                                     </div>
+                                    <div className="col-span-1 text-right text-slate-700">
+                                        {item.quantity?.toLocaleString() || '-'}
+                                    </div>
                                     <div className="col-span-2 text-center clickable" onClick={() => toggleItemStatus(item)}>
                                         <div className="cursor-pointer select-none hover:opacity-80 transition-opacity">
                                             <StatusBadge status={item.status} type="item" />
                                         </div>
                                     </div>
-                                    <div className="col-span-2 text-sm text-slate-600">
+                                    <div className="col-span-1 text-sm text-slate-600">
                                         {item.planDate}
                                     </div>
                                     <div className="col-span-2 text-sm text-slate-600">
