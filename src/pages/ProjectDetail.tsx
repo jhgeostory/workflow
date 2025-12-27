@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/useProjectStore';
 import { type ProjectStatus, type ItemStatus, type ExecutionItem } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
-import { ArrowLeft, Plus, Check, MoreVertical, Calendar } from 'lucide-react';
+import { ArrowLeft, Plus, Check, Trash2, Pencil, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 
@@ -22,6 +22,7 @@ export default function ProjectDetail() {
         quantity: 0,
     });
     const [isAddingItem, setIsAddingItem] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     if (!project) {
         return (
@@ -42,15 +43,27 @@ export default function ProjectDetail() {
         e.preventDefault();
         if (!newItem.name) return;
 
-        addItem(project.id, {
-            id: crypto.randomUUID(),
-            projectId: project.id,
-            name: newItem.name,
-            status: newItem.status as ItemStatus,
-            planDate: newItem.planDate!,
-            quantity: Number(newItem.quantity) || 0,
-            completionDate: newItem.status === 'Complete' ? format(new Date(), 'yyyy-MM-dd') : undefined
-        } as ExecutionItem);
+        if (editingId) {
+            updateItem(project.id, editingId, {
+                name: newItem.name,
+                status: newItem.status as ItemStatus,
+                planDate: newItem.planDate!,
+                quantity: Number(newItem.quantity) || 0,
+                // Preserve existing completion date logic or update it
+                completionDate: newItem.status === 'Complete' ? (newItem.completionDate || format(new Date(), 'yyyy-MM-dd')) : undefined
+            });
+            setEditingId(null);
+        } else {
+            addItem(project.id, {
+                id: crypto.randomUUID(),
+                projectId: project.id,
+                name: newItem.name,
+                status: newItem.status as ItemStatus,
+                planDate: newItem.planDate!,
+                quantity: Number(newItem.quantity) || 0,
+                completionDate: newItem.status === 'Complete' ? format(new Date(), 'yyyy-MM-dd') : undefined
+            } as ExecutionItem);
+        }
 
         setNewItem({
             name: '',
@@ -59,6 +72,24 @@ export default function ProjectDetail() {
             quantity: 0,
         });
         setIsAddingItem(false);
+    };
+
+    const startEdit = (item: ExecutionItem) => {
+        setNewItem({
+            name: item.name,
+            status: item.status,
+            planDate: item.planDate,
+            quantity: item.quantity || 0,
+            completionDate: item.completionDate
+        });
+        setEditingId(item.id);
+        setIsAddingItem(true);
+    };
+
+    const handleDeleteItem = (itemId: string) => {
+        if (confirm('정말 삭제하시겠습니까?')) {
+            deleteItem(project.id, itemId);
+        }
     };
 
     const toggleItemStatus = (item: ExecutionItem) => {
@@ -166,6 +197,9 @@ export default function ProjectDetail() {
 
                 {isAddingItem && (
                     <form onSubmit={handleAddItem} className="p-4 bg-blue-50/50 border-b border-blue-100 animate-in slide-in-from-top-2">
+                        <h4 className="text-sm font-bold text-blue-900 mb-3">
+                            {editingId ? '항목 수정' : '새 항목 추가'}
+                        </h4>
                         <div className="flex flex-wrap items-end gap-4">
                             <div className="flex-1 min-w-[200px]">
                                 <label className="block text-xs font-semibold text-blue-800 mb-1">항목명</label>
@@ -203,11 +237,20 @@ export default function ProjectDetail() {
                                     type="submit"
                                     className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 shadow-sm"
                                 >
-                                    저장
+                                    {editingId ? '수정' : '저장'}
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setIsAddingItem(false)}
+                                    onClick={() => {
+                                        setIsAddingItem(false);
+                                        setEditingId(null);
+                                        setNewItem({
+                                            name: '',
+                                            planDate: format(new Date(), 'yyyy-MM-dd'),
+                                            status: 'Plan',
+                                            quantity: 0,
+                                        });
+                                    }}
                                     className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md text-sm hover:bg-slate-50"
                                 >
                                     취소
@@ -253,12 +296,20 @@ export default function ProjectDetail() {
                                     <div className="col-span-2 text-sm text-slate-600">
                                         {item.completionDate || '-'}
                                     </div>
-                                    <div className="col-span-1 text-center flex justify-center">
+                                    <div className="col-span-1 text-center flex justify-center gap-1">
                                         <button
-                                            onClick={() => deleteItem(project.id, item.id)}
-                                            className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"
+                                            onClick={() => startEdit(item)}
+                                            className="text-slate-400 hover:text-blue-500 p-1 rounded-full hover:bg-blue-50 transition-colors"
+                                            title="수정"
                                         >
-                                            <MoreVertical size={16} className="rotate-90" />
+                                            <Pencil size={14} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteItem(item.id)}
+                                            className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"
+                                            title="삭제"
+                                        >
+                                            <Trash2 size={14} />
                                         </button>
                                     </div>
                                 </div>
