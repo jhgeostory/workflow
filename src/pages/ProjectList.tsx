@@ -28,7 +28,7 @@ export default function ProjectList() {
             { name: "수정", weight: 10 },
             { name: "테스트(QA)", weight: 5 },
             { name: "최종데이터제작", weight: 5 },
-        ].map(item => ({
+        ].map((item, index) => ({
             id: crypto.randomUUID(),
             projectId: projectId,
             name: item.name,
@@ -37,6 +37,7 @@ export default function ProjectList() {
             plannedQuantity: 0,
             actualQuantity: 0,
             weight: item.weight,
+            sortOrder: index,
         }));
 
         addProject({
@@ -46,6 +47,7 @@ export default function ProjectList() {
             startDate: newProject.startDate!,
             endDate: newProject.endDate!,
             items: defaultItems,
+            issues: [],
         } as Project);
 
         setIsCreating(false);

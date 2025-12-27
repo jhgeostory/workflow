@@ -7,6 +7,7 @@ export interface ExecutionItem {
     projectId: string;
     name: string;
     status: ItemStatus;
+    startDate?: string; // ISO Date string
     planDate: string; // ISO Date string
     completionDate?: string; // ISO Date string
     plannedQuantity: number;
@@ -14,6 +15,22 @@ export interface ExecutionItem {
     weight: number;
     children?: ExecutionItem[];
     parentId?: string;
+    sortOrder?: number;
+}
+
+export type IssueStatus = 'Open' | 'InProgress' | 'Resolved';
+export type IssuePriority = 'Low' | 'Medium' | 'High' | 'Critical';
+
+export interface Issue {
+    id: string;
+    projectId: string;
+    title: string;
+    description?: string;
+    status: IssueStatus;
+    priority: IssuePriority;
+    assignee?: string;
+    createdAt: string;
+    resolvedAt?: string;
 }
 
 export interface Project {
@@ -23,4 +40,5 @@ export interface Project {
     startDate: string;
     endDate: string;
     items: ExecutionItem[];
+    issues: Issue[];
 }

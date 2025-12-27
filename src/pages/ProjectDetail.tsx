@@ -9,14 +9,77 @@ import { cn } from '../lib/utils';
 import { ProgressCharts } from '../components/ProgressCharts';
 import { generateWeeklyReport, generateMonthlyReport } from '../lib/reportGenerator';
 import { buildItemTree } from '../lib/treeUtils';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableRow } from '../components/SortableRow';
+import { GanttChart } from '../components/GanttChart';
+import { IssueList } from '../components/IssueList';
+import { List, StretchHorizontal, AlertCircle } from 'lucide-react'; // StretchHorizontal as Gantt icon
 
 const STAGES: ProjectStatus[] = ['Proposal', 'Contract', 'Execution', 'Termination'];
 
 export default function ProjectDetail() {
+    // ... existing hooks ...
     const { id } = useParams();
     const navigate = useNavigate();
     const { projects, updateProject, addItem, updateItem, deleteItem } = useProjectStore();
     const project = projects.find(p => p.id === id);
+
+    const [viewMode, setViewMode] = useState<'list' | 'gantt' | 'issues'>('list');
+    // ... state ...
+
+    // DnD Sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (!project || !over || active.id === over.id) {
+            return;
+        }
+
+        const activeItem = project.items.find(i => i.id === active.id);
+        const overItem = project.items.find(i => i.id === over.id);
+
+        if (!activeItem || !overItem) return;
+
+        // Restriction: Only allow reordering within the same parent
+        // Note: We compare undefined/null/empty as equal for Root
+        const activeParent = activeItem.parentId || null;
+        const overParent = overItem.parentId || null;
+
+        if (activeParent !== overParent) {
+            return; // Cannot move across parents logic for now
+        }
+
+        // Get Siblings sorted by current sortOrder
+        const siblings = project.items
+            .filter(i => (i.parentId || null) === activeParent)
+            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+        const oldIndex = siblings.findIndex(i => i.id === active.id);
+        const newIndex = siblings.findIndex(i => i.id === over.id);
+
+        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+            const newOrder = arrayMove(siblings, oldIndex, newIndex);
+
+            // Update sortOrder for all affected items
+            newOrder.forEach((item, index) => {
+                if (item.sortOrder !== index) {
+                    updateItem(project.id, item.id, { sortOrder: index });
+                }
+            });
+        }
+    };
 
     const [newItem, setNewItem] = useState<Partial<ExecutionItem>>({
         name: '',
@@ -90,14 +153,26 @@ export default function ProjectDetail() {
                 return;
             }
 
+            // Calculate SortOrder
+            const targetParentId = newItem.parentId || undefined;
+            const siblings = project.items.filter(i => {
+                const iParentId = i.parentId || undefined;
+                return iParentId === targetParentId;
+            });
+            const nextSortOrder = siblings.length > 0
+                ? Math.max(...siblings.map(s => s.sortOrder || 0)) + 1
+                : 0;
+
             const commonFields = {
                 name: newItem.name,
                 status: newItem.status as ItemStatus,
+                startDate: newItem.startDate,
                 planDate: newItem.planDate!,
                 plannedQuantity: Number(newItem.plannedQuantity) || 0,
                 actualQuantity: Number(newItem.actualQuantity) || 0,
                 weight: weightToAdd,
                 parentId: newItem.parentId || undefined, // Ensure undefined if falsy
+                sortOrder: nextSortOrder,
             };
 
             if (editingId) {
@@ -124,6 +199,7 @@ export default function ProjectDetail() {
     const resetForm = () => {
         setNewItem({
             name: '',
+            startDate: format(new Date(), 'yyyy-MM-dd'),
             planDate: format(new Date(), 'yyyy-MM-dd'),
             status: 'Plan',
             plannedQuantity: 0,
@@ -139,6 +215,7 @@ export default function ProjectDetail() {
         setNewItem({
             name: item.name,
             status: item.status,
+            startDate: item.startDate,
             planDate: item.planDate,
             plannedQuantity: item.plannedQuantity || 0,
             actualQuantity: item.actualQuantity || 0,
@@ -155,6 +232,7 @@ export default function ProjectDetail() {
         // User requested "Sub-items". Recursive is supported.
         setNewItem({
             name: '',
+            startDate: format(new Date(), 'yyyy-MM-dd'),
             planDate: format(new Date(), 'yyyy-MM-dd'),
             status: 'Plan',
             plannedQuantity: 0,
@@ -169,6 +247,7 @@ export default function ProjectDetail() {
     const startAddRootItem = () => {
         setNewItem({
             name: '',
+            startDate: format(new Date(), 'yyyy-MM-dd'),
             planDate: format(new Date(), 'yyyy-MM-dd'),
             status: 'Plan',
             plannedQuantity: 0,
@@ -320,12 +399,37 @@ export default function ProjectDetail() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <h3 className="font-bold text-lg text-slate-800">수행 세부 항목</h3>
-                    <button
-                        onClick={startAddRootItem}
-                        className="text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg font-medium shadow-sm transition-all flex items-center gap-2"
-                    >
-                        <Plus size={14} /> 루트 항목 추가
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={cn("p-1.5 rounded-md transition-all", viewMode === 'list' ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}
+                                title="목록 보기"
+                            >
+                                <List size={16} />
+                            </button>
+                            <button
+                                onClick={() => setViewMode('gantt')}
+                                className={cn("p-1.5 rounded-md transition-all", viewMode === 'gantt' ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}
+                                title="간트 차트 보기"
+                            >
+                                <StretchHorizontal size={16} />
+                            </button>
+                            <button
+                                onClick={() => setViewMode('issues')}
+                                className={cn("p-1.5 rounded-md transition-all", viewMode === 'issues' ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}
+                                title="이슈 관리"
+                            >
+                                <AlertCircle size={16} />
+                            </button>
+                        </div>
+                        <button
+                            onClick={startAddRootItem}
+                            className="text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg font-medium shadow-sm transition-all flex items-center gap-2"
+                        >
+                            <Plus size={14} /> 루트 항목 추가
+                        </button>
+                    </div>
                 </div>
 
                 {isAddingItem && (
@@ -378,6 +482,15 @@ export default function ProjectDetail() {
                                 />
                             </div>
                             <div className="w-[150px]">
+                                <label className="block text-xs font-semibold text-blue-800 mb-1">시작일</label>
+                                <input
+                                    type="date"
+                                    value={newItem.startDate || ''}
+                                    onChange={e => setNewItem({ ...newItem, startDate: e.target.value })}
+                                    className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div className="w-[150px]">
                                 <label className="block text-xs font-semibold text-blue-800 mb-1">계획일</label>
                                 <input
                                     type="date"
@@ -406,83 +519,106 @@ export default function ProjectDetail() {
                     </form>
                 )}
 
-                <div className="divide-y divide-slate-100">
-                    {displayItems.length === 0 ? (
-                        <div className="p-8 text-center text-slate-400 text-sm">
-                            등록된 수행 항목이 없습니다.
-                        </div>
-                    ) : (
-                        <div className="min-w-full overflow-auto">
-                            {/* Table Header */}
-                            <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider sticky top-0">
-                                <div className="col-span-4">항목명</div>
-                                <div className="col-span-1 text-right">계획/수행</div>
-                                <div className="col-span-1 text-right">가중치</div>
-                                <div className="col-span-2 text-center">상태</div>
-                                <div className="col-span-1">계획일</div>
-                                <div className="col-span-2">완료일</div>
-                                <div className="col-span-1 text-center">관리</div>
+                {viewMode === 'list' ? (
+                    <div className="divide-y divide-slate-100">
+                        {displayItems.length === 0 ? (
+                            <div className="p-8 text-center text-slate-400 text-sm">
+                                등록된 수행 항목이 없습니다.
                             </div>
-                            {/* Table Body */}
-                            {displayItems.map((item) => (
-                                <div key={item.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 transition-colors group">
-                                    <div className="col-span-4 font-medium text-slate-900 truncate flex items-center" title={item.name}>
-                                        {item.depth > 0 && (
-                                            <span style={{ marginLeft: (item.depth * 20) + 'px' }} className="mr-2 text-slate-400">
-                                                <CornerDownRight size={14} />
-                                            </span>
-                                        )}
-                                        {item.name}
-                                    </div>
-                                    <div className="col-span-1 text-right text-slate-700 text-sm">
-                                        {item.hasChildren ? (
-                                            <span className="text-slate-400 text-xs italic">하위참조</span>
-                                        ) : (
-                                            <span>{item.plannedQuantity}/{item.actualQuantity}</span>
-                                        )}
-                                    </div>
-                                    <div className="col-span-1 text-right text-slate-500 text-sm">
-                                        {item.weight}
-                                    </div>
-                                    <div className="col-span-2 text-center clickable" onClick={() => toggleItemStatus(item)}>
-                                        <div className={cn("cursor-pointer select-none transition-opacity", item.hasChildren && "pointer-events-none opacity-80")}>
-                                            <StatusBadge status={item.status} type="item" />
-                                        </div>
-                                    </div>
-                                    <div className="col-span-1 text-sm text-slate-600 truncate">
-                                        {item.planDate}
-                                    </div>
-                                    <div className="col-span-2 text-sm text-slate-600 truncate">
-                                        {item.completionDate || '-'}
-                                    </div>
-                                    <div className="col-span-1 text-center flex justify-center gap-1">
-                                        <button
-                                            onClick={() => startAddSubItem(item.id)}
-                                            className="text-slate-400 hover:text-green-600 p-1 rounded-full hover:bg-green-50 transition-colors"
-                                            title="하위 항목 추가"
-                                        >
-                                            <Plus size={14} />
-                                        </button>
-                                        <button
-                                            onClick={() => startEdit(item)}
-                                            className="text-slate-400 hover:text-blue-500 p-1 rounded-full hover:bg-blue-50 transition-colors"
-                                            title="수정"
-                                        >
-                                            <Pencil size={14} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteItem(item.id)}
-                                            className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"
-                                            title="삭제"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
+                        ) : (
+                            <div className="min-w-full overflow-auto">
+                                {/* Table Header */}
+                                <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider sticky top-0 z-20">
+                                    <div className="col-span-4">항목명</div>
+                                    <div className="col-span-1 text-right">계획/수행</div>
+                                    <div className="col-span-1 text-right">가중치</div>
+                                    <div className="col-span-2 text-center">상태</div>
+                                    <div className="col-span-1">계획일</div>
+                                    <div className="col-span-2">완료일</div>
+                                    <div className="col-span-1 text-center">관리</div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                                {/* Table Body */}
+                                <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragEnd={handleDragEnd}
+                                >
+                                    <SortableContext
+                                        items={displayItems}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        {displayItems.map((item) => (
+                                            <SortableRow
+                                                key={item.id}
+                                                id={item.id}
+                                                className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 transition-colors group bg-white border-b border-slate-100 last:border-0"
+                                            >
+                                                <div className="col-span-4 font-medium text-slate-900 truncate flex items-center" title={item.name}>
+                                                    {item.depth > 0 && (
+                                                        <span style={{ marginLeft: (item.depth * 20) + 'px' }} className="mr-2 text-slate-400">
+                                                            <CornerDownRight size={14} />
+                                                        </span>
+                                                    )}
+                                                    {item.name}
+                                                </div>
+                                                <div className="col-span-1 text-right text-slate-700 text-sm">
+                                                    {item.hasChildren ? (
+                                                        <span className="text-slate-400 text-xs italic">하위참조</span>
+                                                    ) : (
+                                                        <span>{item.plannedQuantity}/{item.actualQuantity}</span>
+                                                    )}
+                                                </div>
+                                                <div className="col-span-1 text-right text-slate-500 text-sm">
+                                                    {item.weight}
+                                                </div>
+                                                <div className="col-span-2 text-center clickable" onClick={(e) => { e.stopPropagation(); toggleItemStatus(item); }}>
+                                                    <div className={cn("cursor-pointer select-none transition-opacity", item.hasChildren && "pointer-events-none opacity-80")}>
+                                                        <StatusBadge status={item.status} type="item" />
+                                                    </div>
+                                                </div>
+                                                <div className="col-span-1 text-sm text-slate-600 truncate">
+                                                    {item.planDate}
+                                                </div>
+                                                <div className="col-span-2 text-sm text-slate-600 truncate">
+                                                    {item.completionDate || '-'}
+                                                </div>
+                                                <div className="col-span-1 text-center flex justify-center gap-1">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); startAddSubItem(item.id); }}
+                                                        className="text-slate-400 hover:text-green-600 p-1 rounded-full hover:bg-green-50 transition-colors"
+                                                        title="하위 항목 추가"
+                                                    >
+                                                        <Plus size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); startEdit(item); }}
+                                                        className="text-slate-400 hover:text-blue-500 p-1 rounded-full hover:bg-blue-50 transition-colors"
+                                                        title="수정"
+                                                    >
+                                                        <Pencil size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
+                                                        className="text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"
+                                                        title="삭제"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </SortableRow>
+                                        ))}
+                                    </SortableContext>
+                                </DndContext>
+                            </div>
+                        )}
+                    </div>
+                ) : viewMode === 'gantt' ? (
+                    <div className="p-6 overflow-auto">
+                        <GanttChart items={displayItems} startDate={project.startDate} endDate={project.endDate} />
+                    </div>
+                ) : (
+                    <IssueList projectId={project.id} />
+                )}
             </div>
         </div>
     );

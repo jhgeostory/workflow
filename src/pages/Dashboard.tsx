@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useProjectStore } from '../store/useProjectStore';
 import { ProgressCharts } from '../components/ProgressCharts';
+import { BackupService } from '../components/BackupService'; // Import
 import { generateWeeklyReport, generateMonthlyReport } from '../lib/reportGenerator';
 import { FileDown, Layout, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { buildItemTree } from '../lib/treeUtils';
@@ -22,6 +23,10 @@ export default function Dashboard() {
         }, {} as Record<string, number>);
     }, [projects]);
 
+    const openIssueCount = useMemo(() => {
+        return projects.reduce((sum, p) => sum + (p.issues || []).filter(i => i.status !== 'Resolved').length, 0);
+    }, [projects]);
+
     const allItems = useMemo(() => projects.flatMap(p => p.items), [projects]);
 
     return (
@@ -31,24 +36,26 @@ export default function Dashboard() {
                     <h2 className="text-2xl font-bold text-slate-900 mb-2">대시보드</h2>
                     <p className="text-slate-500">프로젝트 현황 및 주간/월간 공정률 리포트</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                    <BackupService />
+                    <div className="h-6 w-px bg-slate-300 mx-1"></div> {/* Separator */}
                     <button
                         onClick={() => generateWeeklyReport(projectsWithTree)}
                         className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 shadow-sm text-sm font-medium transition-colors"
                     >
-                        <FileDown size={16} /> 주간 보고서
+                        <FileDown size={16} /> 주간 보고
                     </button>
                     <button
                         onClick={() => generateMonthlyReport(projectsWithTree)}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm text-sm font-medium transition-colors"
                     >
-                        <FileDown size={16} /> 월간 보고서
+                        <FileDown size={16} /> 월간 보고
                     </button>
                 </div>
             </div>
 
             {/* Metrics Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
                     <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
                         <Layout size={24} />
@@ -85,6 +92,15 @@ export default function Dashboard() {
                     <div>
                         <div className="text-sm text-slate-500 font-medium">총 수행 항목</div>
                         <div className="text-2xl font-bold text-slate-900">{allItems.length}</div>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center">
+                        <AlertCircle size={24} />
+                    </div>
+                    <div>
+                        <div className="text-sm text-slate-500 font-medium">진행중인 이슈</div>
+                        <div className="text-2xl font-bold text-slate-900">{openIssueCount}</div>
                     </div>
                 </div>
             </div>

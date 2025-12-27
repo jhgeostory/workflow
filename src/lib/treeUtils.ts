@@ -21,6 +21,14 @@ export function buildItemTree(items: ExecutionItem[]): ExecutionItem[] {
         }
     });
 
+    // 3. Sort by sortOrder
+    const sortFn = (a: ExecutionItem, b: ExecutionItem) => (a.sortOrder || 0) - (b.sortOrder || 0);
+
+    roots.sort(sortFn);
+    itemMap.forEach(node => {
+        if (node.children) node.children.sort(sortFn);
+    });
+
     return roots;
 }
 
