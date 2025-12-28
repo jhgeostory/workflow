@@ -96,6 +96,23 @@ export const useProjectStore = create<ProjectState>()(
         }),
         {
             name: 'pm-storage',
+            version: 1,
+            migrate: (persistedState: any, version) => {
+                if (version === 0) {
+                    const projects = persistedState.projects || [];
+                    projects.forEach((p: any) => {
+                        p.items.forEach((i: any) => {
+                            // Migrate fields from v0 to v1
+                            i.planStartDate = i.planStartDate || i.startDate || p.startDate;
+                            i.planEndDate = i.planEndDate || i.planDate || p.endDate;
+                            i.actualEndDate = i.actualEndDate || i.completionDate;
+                            // Clean up old fields optionally, or leave them.
+                            // Ensure required fields exist
+                        });
+                    });
+                }
+                return persistedState;
+            },
         }
     )
 );
