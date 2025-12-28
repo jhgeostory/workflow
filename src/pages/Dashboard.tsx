@@ -3,6 +3,7 @@ import { useProjectStore } from '../store/useProjectStore';
 import { ProgressCharts } from '../components/ProgressCharts';
 import { BackupService } from '../components/BackupService';
 import { DashboardCalendar } from '../components/DashboardCalendar';
+import { G2BWidget } from '../components/G2BWidget';
 import { generateWeeklyReport, generateMonthlyReport } from '../lib/reportGenerator';
 import { FileDown, Layout, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { buildItemTree } from '../lib/treeUtils';
@@ -112,10 +113,17 @@ export default function Dashboard() {
                     <h3 className="text-xl font-bold text-slate-800 px-1">전체 프로젝트 통합 공정률</h3>
                     <ProgressCharts items={projectsWithTree.flatMap(p => p.items)} />
                 </div>
-                <div className="space-y-4">
-                    <h3 className="text-xl font-bold text-slate-800 px-1">월간 일정</h3>
-                    <div className="h-[400px]">
-                        <DashboardCalendar />
+                <div className="space-y-6">
+                    <div className="space-y-2">
+                        <h3 className="text-xl font-bold text-slate-800 px-1">월간 일정</h3>
+                        <div className="h-[380px]">
+                            <DashboardCalendar />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <div className="h-[300px]">
+                            <G2BWidget />
+                        </div>
                     </div>
                 </div>
             </div>
