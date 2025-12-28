@@ -425,24 +425,24 @@ export default function ProjectDetail() {
                         <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
                             <button
                                 onClick={() => setViewMode('list')}
-                                className={cn("p-1.5 rounded-md transition-all", viewMode === 'list' ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}
+                                className={cn("flex items-center px-3 py-1.5 rounded-md transition-all text-xs font-bold", viewMode === 'list' ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}
                                 title="목록 보기"
                             >
-                                <List size={16} />
+                                <List size={14} className="mr-1.5" /> 목록
                             </button>
                             <button
                                 onClick={() => setViewMode('gantt')}
-                                className={cn("p-1.5 rounded-md transition-all", viewMode === 'gantt' ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}
+                                className={cn("flex items-center px-3 py-1.5 rounded-md transition-all text-xs font-bold", viewMode === 'gantt' ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}
                                 title="간트 차트 보기"
                             >
-                                <StretchHorizontal size={16} />
+                                <StretchHorizontal size={14} className="mr-1.5" /> 간트
                             </button>
                             <button
                                 onClick={() => setViewMode('issues')}
-                                className={cn("p-1.5 rounded-md transition-all", viewMode === 'issues' ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}
+                                className={cn("flex items-center px-3 py-1.5 rounded-md transition-all text-xs font-bold", viewMode === 'issues' ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700")}
                                 title="이슈 관리"
                             >
-                                <AlertCircle size={16} />
+                                <AlertCircle size={14} className="mr-1.5" /> 이슈
                             </button>
                         </div>
                         <button
@@ -617,15 +617,32 @@ export default function ProjectDetail() {
                                                         <StatusBadge status={item.status} type="item" />
                                                     </div>
                                                 </div>
-                                                <div className="col-span-3 text-sm text-slate-600 flex flex-col items-center justify-center leading-tight">
-                                                    <span>{item.planStartDate}</span>
+                                                <div
+                                                    className="col-span-3 text-sm text-slate-600 flex flex-col items-center justify-center leading-tight cursor-pointer hover:bg-blue-50 rounded p-1 transition-colors"
+                                                    onClick={(e) => { e.stopPropagation(); startEdit(item); }}
+                                                    title="클릭하여 수정"
+                                                >
+                                                    <span className="font-medium">{item.planStartDate}</span>
                                                     <span className="text-slate-400 text-[10px]">~ {item.planEndDate}</span>
+                                                    <span className="text-xs text-blue-600 font-medium mt-0.5">
+                                                        ({differenceInDays(parseISO(item.planEndDate), parseISO(item.planStartDate)) + 1}일)
+                                                    </span>
                                                 </div>
-                                                <div className="col-span-2 text-sm text-slate-600 flex flex-col items-center justify-center leading-tight">
+                                                <div
+                                                    className="col-span-2 text-sm text-slate-600 flex flex-col items-center justify-center leading-tight cursor-pointer hover:bg-blue-50 rounded p-1 transition-colors"
+                                                    onClick={(e) => { e.stopPropagation(); startEdit(item); }}
+                                                    title="클릭하여 수정"
+                                                >
                                                     {item.actualStartDate ? (
                                                         <>
-                                                            <span>{item.actualStartDate}</span>
+                                                            <span className="font-medium">{item.actualStartDate}</span>
                                                             <span className="text-slate-400 text-[10px]">~ {item.actualEndDate || '진행중'}</span>
+                                                            {(() => {
+                                                                const start = parseISO(item.actualStartDate);
+                                                                const end = item.actualEndDate ? parseISO(item.actualEndDate) : new Date();
+                                                                const days = differenceInDays(end, start) + 1;
+                                                                return <span className="text-xs text-green-600 font-medium mt-0.5">({days}일{item.actualEndDate ? '' : '째'})</span>;
+                                                            })()}
                                                         </>
                                                     ) : '-'}
                                                     {(() => {
