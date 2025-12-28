@@ -4,7 +4,7 @@ import { useProjectStore } from '../store/useProjectStore';
 import { type ProjectStatus, type ItemStatus, type ExecutionItem } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { ArrowLeft, Plus, Check, Trash2, Pencil, Calendar, FileDown, CornerDownRight } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO, differenceInDays } from 'date-fns';
 import { cn } from '../lib/utils';
 import { ProgressCharts } from '../components/ProgressCharts';
 import { generateWeeklyReport, generateMonthlyReport } from '../lib/reportGenerator';
@@ -83,7 +83,8 @@ export default function ProjectDetail() {
 
     const [newItem, setNewItem] = useState<Partial<ExecutionItem>>({
         name: '',
-        planDate: format(new Date(), 'yyyy-MM-dd'),
+        planStartDate: format(new Date(), 'yyyy-MM-dd'),
+        planEndDate: format(new Date(), 'yyyy-MM-dd'),
         status: 'Plan',
         plannedQuantity: 0,
         actualQuantity: 0,
@@ -166,8 +167,10 @@ export default function ProjectDetail() {
             const commonFields = {
                 name: newItem.name,
                 status: newItem.status as ItemStatus,
-                startDate: newItem.startDate,
-                planDate: newItem.planDate!,
+                planStartDate: newItem.planStartDate!,
+                planEndDate: newItem.planEndDate!,
+                actualStartDate: newItem.actualStartDate,
+                actualEndDate: newItem.actualEndDate,
                 plannedQuantity: Number(newItem.plannedQuantity) || 0,
                 actualQuantity: Number(newItem.actualQuantity) || 0,
                 weight: weightToAdd,
@@ -178,14 +181,14 @@ export default function ProjectDetail() {
             if (editingId) {
                 updateItem(project.id, editingId, {
                     ...commonFields,
-                    completionDate: newItem.status === 'Complete' ? (newItem.completionDate || format(new Date(), 'yyyy-MM-dd')) : undefined
+                    actualEndDate: newItem.status === 'Complete' ? (newItem.actualEndDate || format(new Date(), 'yyyy-MM-dd')) : undefined
                 });
             } else {
                 addItem(project.id, {
                     id: crypto.randomUUID(),
                     projectId: project.id,
                     ...commonFields,
-                    completionDate: newItem.status === 'Complete' ? format(new Date(), 'yyyy-MM-dd') : undefined
+                    actualEndDate: newItem.status === 'Complete' ? format(new Date(), 'yyyy-MM-dd') : undefined
                 } as ExecutionItem);
             }
 
@@ -199,8 +202,8 @@ export default function ProjectDetail() {
     const resetForm = () => {
         setNewItem({
             name: '',
-            startDate: format(new Date(), 'yyyy-MM-dd'),
-            planDate: format(new Date(), 'yyyy-MM-dd'),
+            planStartDate: format(new Date(), 'yyyy-MM-dd'),
+            planEndDate: format(new Date(), 'yyyy-MM-dd'),
             status: 'Plan',
             plannedQuantity: 0,
             actualQuantity: 0,
@@ -215,12 +218,13 @@ export default function ProjectDetail() {
         setNewItem({
             name: item.name,
             status: item.status,
-            startDate: item.startDate,
-            planDate: item.planDate,
+            planStartDate: item.planStartDate,
+            planEndDate: item.planEndDate,
+            actualStartDate: item.actualStartDate,
+            actualEndDate: item.actualEndDate,
             plannedQuantity: item.plannedQuantity || 0,
             actualQuantity: item.actualQuantity || 0,
             weight: item.weight || 1,
-            completionDate: item.completionDate,
             parentId: item.parentId
         });
         setEditingId(item.id);
@@ -232,8 +236,8 @@ export default function ProjectDetail() {
         // User requested "Sub-items". Recursive is supported.
         setNewItem({
             name: '',
-            startDate: format(new Date(), 'yyyy-MM-dd'),
-            planDate: format(new Date(), 'yyyy-MM-dd'),
+            planStartDate: format(new Date(), 'yyyy-MM-dd'),
+            planEndDate: format(new Date(), 'yyyy-MM-dd'),
             status: 'Plan',
             plannedQuantity: 0,
             actualQuantity: 0,
@@ -247,8 +251,8 @@ export default function ProjectDetail() {
     const startAddRootItem = () => {
         setNewItem({
             name: '',
-            startDate: format(new Date(), 'yyyy-MM-dd'),
-            planDate: format(new Date(), 'yyyy-MM-dd'),
+            planStartDate: format(new Date(), 'yyyy-MM-dd'),
+            planEndDate: format(new Date(), 'yyyy-MM-dd'),
             status: 'Plan',
             plannedQuantity: 0,
             actualQuantity: 0,
@@ -287,12 +291,17 @@ export default function ProjectDetail() {
 
         const updates: Partial<ExecutionItem> = { status: next };
         if (next === 'Complete') {
-            updates.completionDate = format(new Date(), 'yyyy-MM-dd');
+            updates.actualEndDate = format(new Date(), 'yyyy-MM-dd');
             if (item.actualQuantity === 0 && item.plannedQuantity > 0) {
                 updates.actualQuantity = item.plannedQuantity;
             }
+        } else if (next === 'Progress') {
+            if (!item.actualStartDate) {
+                updates.actualStartDate = format(new Date(), 'yyyy-MM-dd');
+            }
+            updates.actualEndDate = undefined;
         } else {
-            updates.completionDate = undefined;
+            updates.actualEndDate = undefined;
         }
         updateItem(project.id, item.id, updates);
     };
@@ -494,24 +503,43 @@ export default function ProjectDetail() {
                                     className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
                                 />
                             </div>
-                            <div className="w-[150px]">
-                                <label className="block text-xs font-semibold text-blue-800 mb-1">시작일</label>
-                                <input
-                                    type="date"
-                                    value={newItem.startDate || ''}
-                                    onChange={e => setNewItem({ ...newItem, startDate: e.target.value })}
-                                    className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
+                            <div className="w-[240px]">
+                                <label className="block text-xs font-semibold text-blue-800 mb-1">계획 기간 (시작 ~ 종료)</label>
+                                <div className="flex gap-1 items-center">
+                                    <input
+                                        type="date"
+                                        required
+                                        value={newItem.planStartDate}
+                                        onChange={e => setNewItem({ ...newItem, planStartDate: e.target.value })}
+                                        className="w-full px-2 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <span className="text-blue-300">~</span>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={newItem.planEndDate}
+                                        onChange={e => setNewItem({ ...newItem, planEndDate: e.target.value })}
+                                        className="w-full px-2 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
                             </div>
-                            <div className="w-[150px]">
-                                <label className="block text-xs font-semibold text-blue-800 mb-1">계획일</label>
-                                <input
-                                    type="date"
-                                    required
-                                    value={newItem.planDate}
-                                    onChange={e => setNewItem({ ...newItem, planDate: e.target.value })}
-                                    className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
+                            <div className="w-[240px]">
+                                <label className="block text-xs font-semibold text-blue-800 mb-1">수행 기간 (시작 ~ 종료)</label>
+                                <div className="flex gap-1 items-center">
+                                    <input
+                                        type="date"
+                                        value={newItem.actualStartDate || ''}
+                                        onChange={e => setNewItem({ ...newItem, actualStartDate: e.target.value })}
+                                        className="w-full px-2 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <span className="text-blue-300">~</span>
+                                    <input
+                                        type="date"
+                                        value={newItem.actualEndDate || ''}
+                                        onChange={e => setNewItem({ ...newItem, actualEndDate: e.target.value })}
+                                        className="w-full px-2 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
                             </div>
                             <div className="flex items-center gap-2 pb-1">
                                 <button
@@ -542,12 +570,12 @@ export default function ProjectDetail() {
                             <div className="min-w-full overflow-auto">
                                 {/* Table Header */}
                                 <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider sticky top-0 z-20">
-                                    <div className="col-span-4">항목명</div>
+                                    <div className="col-span-3">항목명</div>
                                     <div className="col-span-1 text-right">계획/수행</div>
                                     <div className="col-span-1 text-right">가중치</div>
-                                    <div className="col-span-2 text-center">상태</div>
-                                    <div className="col-span-1">계획일</div>
-                                    <div className="col-span-2">완료일</div>
+                                    <div className="col-span-1 text-center">상태</div>
+                                    <div className="col-span-3 text-center">계획 기간</div>
+                                    <div className="col-span-2 text-center">수행 기간</div>
                                     <div className="col-span-1 text-center">관리</div>
                                 </div>
                                 {/* Table Body */}
@@ -566,7 +594,7 @@ export default function ProjectDetail() {
                                                 id={item.id}
                                                 className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 transition-colors group bg-white border-b border-slate-100 last:border-0"
                                             >
-                                                <div className="col-span-4 font-medium text-slate-900 truncate flex items-center" title={item.name}>
+                                                <div className="col-span-3 font-medium text-slate-900 truncate flex items-center" title={item.name}>
                                                     {item.depth > 0 && (
                                                         <span style={{ marginLeft: (item.depth * 20) + 'px' }} className="mr-2 text-slate-400">
                                                             <CornerDownRight size={14} />
@@ -584,16 +612,50 @@ export default function ProjectDetail() {
                                                 <div className="col-span-1 text-right text-slate-500 text-sm">
                                                     {item.weight}
                                                 </div>
-                                                <div className="col-span-2 text-center clickable" onClick={(e) => { e.stopPropagation(); toggleItemStatus(item); }}>
+                                                <div className="col-span-1 text-center clickable" onClick={(e) => { e.stopPropagation(); toggleItemStatus(item); }}>
                                                     <div className={cn("cursor-pointer select-none transition-opacity", item.hasChildren && "pointer-events-none opacity-80")}>
                                                         <StatusBadge status={item.status} type="item" />
                                                     </div>
                                                 </div>
-                                                <div className="col-span-1 text-sm text-slate-600 truncate">
-                                                    {item.planDate}
+                                                <div className="col-span-3 text-sm text-slate-600 flex flex-col items-center justify-center leading-tight">
+                                                    <span>{item.planStartDate}</span>
+                                                    <span className="text-slate-400 text-[10px]">~ {item.planEndDate}</span>
                                                 </div>
-                                                <div className="col-span-2 text-sm text-slate-600 truncate">
-                                                    {item.completionDate || '-'}
+                                                <div className="col-span-2 text-sm text-slate-600 flex flex-col items-center justify-center leading-tight">
+                                                    {item.actualStartDate ? (
+                                                        <>
+                                                            <span>{item.actualStartDate}</span>
+                                                            <span className="text-slate-400 text-[10px]">~ {item.actualEndDate || '진행중'}</span>
+                                                        </>
+                                                    ) : '-'}
+                                                    {(() => {
+                                                        const planEnd = parseISO(item.planEndDate);
+                                                        const planStart = parseISO(item.planStartDate);
+                                                        const planDuration = Math.max(1, differenceInDays(planEnd, planStart) + 1);
+                                                        const today = new Date();
+                                                        // Reset time for accurate day comparison
+                                                        today.setHours(0, 0, 0, 0);
+
+                                                        // Also set planEnd time to end of day? Or just compare dates?
+                                                        // parseISO returns local time midnight.
+
+                                                        if (item.status === 'Complete' && item.actualEndDate) {
+                                                            const actEnd = parseISO(item.actualEndDate);
+                                                            if (differenceInDays(actEnd, planEnd) > 0) {
+                                                                const days = differenceInDays(actEnd, planEnd);
+                                                                const percent = Math.round((days / planDuration) * 100);
+                                                                return <span className="text-red-500 text-[10px] font-bold block mt-1">(+{days}일, {percent}%)</span>;
+                                                            }
+                                                        } else if (item.status !== 'Complete') {
+                                                            // Check overdose
+                                                            if (differenceInDays(today, planEnd) > 0) {
+                                                                const days = differenceInDays(today, planEnd);
+                                                                const percent = Math.round((days / planDuration) * 100);
+                                                                return <span className="text-red-500 text-[10px] font-bold block mt-1 animate-pulse">(+{days}일, {percent}%)</span>;
+                                                            }
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </div>
                                                 <div className="col-span-1 text-center flex justify-center gap-1">
                                                     <button

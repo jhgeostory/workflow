@@ -28,7 +28,7 @@ export function ProgressCharts({ items }: ProgressChartsProps) {
 
             // Filter items relevant to this week
             const weekItems = items.filter(item =>
-                item.planDate && isWithinInterval(parseISO(item.planDate), { start: weekStart, end: weekEnd })
+                item.planEndDate && isWithinInterval(parseISO(item.planEndDate), { start: weekStart, end: weekEnd })
             );
 
             const rate = calculateProgress(weekItems);
@@ -57,7 +57,7 @@ export function ProgressCharts({ items }: ProgressChartsProps) {
             const monthLabel = format(date, 'yyyy-MM');
 
             const monthItems = items.filter(item =>
-                item.planDate && isWithinInterval(parseISO(item.planDate), { start: monthStart, end: monthEnd })
+                item.planEndDate && isWithinInterval(parseISO(item.planEndDate), { start: monthStart, end: monthEnd })
             );
 
             const rate = calculateProgress(monthItems);

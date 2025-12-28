@@ -7,9 +7,10 @@ export interface ExecutionItem {
     projectId: string;
     name: string;
     status: ItemStatus;
-    startDate?: string; // ISO Date string
-    planDate: string; // ISO Date string
-    completionDate?: string; // ISO Date string
+    planStartDate: string;
+    planEndDate: string;
+    actualStartDate?: string;
+    actualEndDate?: string;
     plannedQuantity: number;
     actualQuantity: number;
     weight: number;

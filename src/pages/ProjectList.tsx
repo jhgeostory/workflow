@@ -58,7 +58,8 @@ export default function ProjectList() {
             projectId: projectId,
             name: item.name,
             status: 'Plan',
-            planDate: newProject.startDate!, // Default to project start
+            planStartDate: newProject.startDate!, // Default to project start
+            planEndDate: newProject.endDate!,   // Default to project end
             plannedQuantity: 0,
             actualQuantity: 0,
             weight: item.weight,

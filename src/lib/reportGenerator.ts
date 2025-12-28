@@ -99,8 +99,8 @@ function createDetailedTaskTables(projects: Project[], startDate: Date, endDate:
 
         // 2. Filter items: Planned OR Completed within the range
         const relevantItems = flatItems.filter(item => {
-            const isPlanned = safeIsWithinInterval(item.planDate, { start: startDate, end: endDate });
-            const isCompleted = safeIsWithinInterval(item.completionDate, { start: startDate, end: endDate });
+            const isPlanned = safeIsWithinInterval(item.planEndDate, { start: startDate, end: endDate });
+            const isCompleted = safeIsWithinInterval(item.actualEndDate, { start: startDate, end: endDate });
             return isPlanned || isCompleted;
         });
 
@@ -135,8 +135,8 @@ function createDetailedTaskTables(projects: Project[], startDate: Date, endDate:
                 children: [
                     new TableCell({ children: [new Paragraph({ text: indentPrefix + item.name })] }),
                     new TableCell({ children: [new Paragraph({ text: item.status, alignment: AlignmentType.CENTER })] }),
-                    new TableCell({ children: [new Paragraph({ text: item.planDate, alignment: AlignmentType.CENTER })] }),
-                    new TableCell({ children: [new Paragraph({ text: item.completionDate || "-", alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: item.planEndDate, alignment: AlignmentType.CENTER })] }),
+                    new TableCell({ children: [new Paragraph({ text: item.actualEndDate || "-", alignment: AlignmentType.CENTER })] }),
                     new TableCell({ children: [new Paragraph({ text: String(item.weight || 1), alignment: AlignmentType.CENTER })] }),
                 ],
             });

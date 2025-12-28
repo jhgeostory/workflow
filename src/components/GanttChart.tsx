@@ -54,8 +54,8 @@ export function GanttChart({ items, startDate, endDate }: GanttChartProps) {
                 {/* Items */}
                 <div style={{ paddingTop: headerHeight, position: 'relative' }}>
                     {items.map((item, index) => {
-                        const itemStart = item.startDate || item.planDate;
-                        const itemEnd = item.planDate;
+                        const itemStart = item.planStartDate;
+                        const itemEnd = item.planEndDate;
 
                         const x = getX(itemStart);
                         const width = Math.max(colWidth, getX(itemEnd) - x + colWidth); // include end date
