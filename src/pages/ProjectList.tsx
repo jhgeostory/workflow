@@ -4,36 +4,36 @@ import { Plus, Calendar, ArrowRight, Trash2 } from 'lucide-react';
 import { useProjectStore } from '../store/useProjectStore';
 import { type Project, type ProjectStatus, type ExecutionItem } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
-import { format, addDays } from 'date-fns';
+import { format, addDays, differenceInDays } from 'date-fns';
 
-const TEMPLATE_ITEMS: Record<ProjectStatus, { name: string; weight: number }[]> = {
+const TEMPLATE_ITEMS: Record<ProjectStatus, { name: string; weight: number; startRatio: number; endRatio: number }[]> = {
     'Proposal': [
-        { name: "계획", weight: 10 },
-        { name: "제안목차 작성", weight: 10 },
-        { name: "1차제안서작성", weight: 40 },
-        { name: "2차제안서작성", weight: 20 },
-        { name: "발표자료 작성", weight: 10 },
-        { name: "제안제출", weight: 10 },
+        { name: "계획", weight: 10, startRatio: 0, endRatio: 0.1 },
+        { name: "제안목차 작성", weight: 10, startRatio: 0.1, endRatio: 0.15 },
+        { name: "1차제안서작성", weight: 40, startRatio: 0.15, endRatio: 0.5 },
+        { name: "2차제안서작성", weight: 20, startRatio: 0.5, endRatio: 0.7 },
+        { name: "발표자료 작성", weight: 10, startRatio: 0.7, endRatio: 0.9 },
+        { name: "제안제출", weight: 10, startRatio: 0.9, endRatio: 1.0 },
     ],
     'Contract': [
-        { name: "기술협상", weight: 10 },
-        { name: "착수계 작성", weight: 20 },
-        { name: "사업수행 계획서 작성", weight: 60 },
-        { name: "계약", weight: 10 },
+        { name: "기술협상", weight: 10, startRatio: 0, endRatio: 0.1 },
+        { name: "착수계 작성", weight: 20, startRatio: 0.1, endRatio: 0.3 },
+        { name: "사업수행 계획서 작성", weight: 60, startRatio: 0.3, endRatio: 0.8 },
+        { name: "계약", weight: 10, startRatio: 0.8, endRatio: 1.0 },
     ],
     'Execution': [
-        { name: "계획", weight: 10 },
-        { name: "구축", weight: 60 },
-        { name: "검수", weight: 10 },
-        { name: "수정", weight: 10 },
-        { name: "테스트(QA)", weight: 5 },
-        { name: "최종데이터제작", weight: 5 },
+        { name: "계획", weight: 10, startRatio: 0, endRatio: 0.1 },
+        { name: "구축", weight: 60, startRatio: 0.1, endRatio: 0.6 },
+        { name: "검수", weight: 10, startRatio: 0.6, endRatio: 0.7 },
+        { name: "수정", weight: 10, startRatio: 0.7, endRatio: 0.8 },
+        { name: "테스트(QA)", weight: 5, startRatio: 0.8, endRatio: 0.9 },
+        { name: "최종데이터제작", weight: 5, startRatio: 0.9, endRatio: 1.0 },
     ],
     'Termination': [
-        { name: "준공계 작성", weight: 20 },
-        { name: "완료보고서 제출", weight: 40 },
-        { name: "준공검수", weight: 30 },
-        { name: "준공 서류 접수", weight: 10 },
+        { name: "준공계 작성", weight: 20, startRatio: 0, endRatio: 0.2 },
+        { name: "완료보고서 제출", weight: 40, startRatio: 0.2, endRatio: 0.6 },
+        { name: "준공검수", weight: 30, startRatio: 0.6, endRatio: 0.9 },
+        { name: "준공 서류 접수", weight: 10, startRatio: 0.9, endRatio: 1.0 },
     ]
 };
 
@@ -53,18 +53,47 @@ export default function ProjectList() {
 
         const projectId = crypto.randomUUID();
         const template = TEMPLATE_ITEMS[newProject.status as ProjectStatus] || TEMPLATE_ITEMS['Execution'];
-        const defaultItems: ExecutionItem[] = template.map((item, index) => ({
-            id: crypto.randomUUID(),
-            projectId: projectId,
-            name: item.name,
-            status: 'Plan',
-            planStartDate: newProject.startDate!, // Default to project start
-            planEndDate: newProject.endDate!,   // Default to project end
-            plannedQuantity: 0,
-            actualQuantity: 0,
-            weight: item.weight,
-            sortOrder: index,
-        }));
+        const projectStartDate = new Date(newProject.startDate!);
+        const projectEndDate = new Date(newProject.endDate!);
+        // Ensure totalDays is at least 1 to avoid division by zero or errors
+        const totalDays = Math.max(1, differenceInDays(projectEndDate, projectStartDate));
+
+        const defaultItems: ExecutionItem[] = template.map((item, index) => {
+            // Calculate start and end offset days
+            const startOffset = Math.floor(totalDays * item.startRatio);
+            // End offset: subtract 1 day if it's not the very end, to avoid overlap? 
+            // Or just continuous? User request implies continuous ranges (e.g. 10%~15%, 15%~50%).
+            // Typically Day 0 to Day N.
+            const endOffset = Math.floor(totalDays * item.endRatio);
+
+            // Just add days.
+            const itemStart = addDays(projectStartDate, startOffset);
+            let itemEnd = addDays(projectStartDate, Math.max(startOffset, endOffset));
+
+            // Adjust: if endRatio is 1.0, it should be projectEndDate.
+            // If ranges are strictly contiguous, e.g. 0-10, 10-30...
+            // Item 1: 0 to 10. Item 2: 10 to 30.
+            // Start of Item 2 (Day 10) = End of Item 1 (Day 10).
+            // Usually tasks might overlap or be sequential.
+            // Let's use exact calculation. 
+            // If startOffset == endOffset, ensure at least 1 day?
+            if (differenceInDays(itemEnd, itemStart) < 0) {
+                itemEnd = itemStart;
+            }
+
+            return {
+                id: crypto.randomUUID(),
+                projectId: projectId,
+                name: item.name,
+                status: 'Plan',
+                planStartDate: format(itemStart, 'yyyy-MM-dd'),
+                planEndDate: format(itemEnd, 'yyyy-MM-dd'),
+                plannedQuantity: 0,
+                actualQuantity: 0,
+                weight: item.weight,
+                sortOrder: index,
+            };
+        });
 
         addProject({
             id: projectId,
