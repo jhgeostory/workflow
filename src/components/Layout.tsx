@@ -19,7 +19,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <aside className="w-64 bg-white border-r border-slate-200 fixed h-full z-10 hidden md:block">
                 <div className="h-16 flex items-center px-6 border-b border-slate-100">
                     <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                        PM System
+                        JH-PM story
                     </span>
                 </div>
                 <nav className="p-4 space-y-1">
@@ -52,7 +52,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <aside className="absolute inset-y-0 left-0 w-64 bg-white border-r border-slate-200 animate-in slide-in-from-left duration-200">
                         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100">
                             <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                                PM System
+                                JH-PM story
                             </span>
                             <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-500 hover:text-slate-700">
                                 <X size={24} />
@@ -95,7 +95,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             <Menu size={24} />
                         </button>
                         <h1 className="text-lg font-semibold text-slate-800">
-                            {navItems.find(i => i.href === location.pathname)?.label || 'PM System'}
+                            {navItems.find(i => i.href === location.pathname)?.label || 'JH-PM story'}
                         </h1>
                     </div>
                 </header>
