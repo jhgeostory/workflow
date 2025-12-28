@@ -6,6 +6,37 @@ import { type Project, type ProjectStatus, type ExecutionItem } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { format, addDays } from 'date-fns';
 
+const TEMPLATE_ITEMS: Record<ProjectStatus, { name: string; weight: number }[]> = {
+    'Proposal': [
+        { name: "계획", weight: 10 },
+        { name: "제안목차 작성", weight: 10 },
+        { name: "1차제안서작성", weight: 40 },
+        { name: "2차제안서작성", weight: 20 },
+        { name: "발표자료 작성", weight: 10 },
+        { name: "제안제출", weight: 10 },
+    ],
+    'Contract': [
+        { name: "기술협상", weight: 10 },
+        { name: "착수계 작성", weight: 20 },
+        { name: "사업수행 계획서 작성", weight: 60 },
+        { name: "계약", weight: 10 },
+    ],
+    'Execution': [
+        { name: "계획", weight: 10 },
+        { name: "구축", weight: 60 },
+        { name: "검수", weight: 10 },
+        { name: "수정", weight: 10 },
+        { name: "테스트(QA)", weight: 5 },
+        { name: "최종데이터제작", weight: 5 },
+    ],
+    'Termination': [
+        { name: "준공계 작성", weight: 20 },
+        { name: "완료보고서 제출", weight: 40 },
+        { name: "준공검수", weight: 30 },
+        { name: "준공 서류 접수", weight: 10 },
+    ]
+};
+
 export default function ProjectList() {
     const { projects, addProject, deleteProject } = useProjectStore();
     const [isCreating, setIsCreating] = useState(false);
@@ -21,14 +52,8 @@ export default function ProjectList() {
         if (!newProject.name) return;
 
         const projectId = crypto.randomUUID();
-        const defaultItems: ExecutionItem[] = [
-            { name: "계획", weight: 10 },
-            { name: "구축", weight: 60 },
-            { name: "검수", weight: 10 },
-            { name: "수정", weight: 10 },
-            { name: "테스트(QA)", weight: 5 },
-            { name: "최종데이터제작", weight: 5 },
-        ].map((item, index) => ({
+        const template = TEMPLATE_ITEMS[newProject.status as ProjectStatus] || TEMPLATE_ITEMS['Execution'];
+        const defaultItems: ExecutionItem[] = template.map((item, index) => ({
             id: crypto.randomUUID(),
             projectId: projectId,
             name: item.name,

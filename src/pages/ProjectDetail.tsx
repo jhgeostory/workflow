@@ -398,7 +398,20 @@ export default function ProjectDetail() {
             {/* Execution Items Area */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <h3 className="font-bold text-lg text-slate-800">수행 세부 항목</h3>
+                    <div className="flex items-center gap-3">
+                        <h3 className="font-bold text-lg text-slate-800">수행 세부 항목</h3>
+                        {Math.abs(getTotalWeight(undefined) - 100) > 0.1 ? (
+                            <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full flex items-center gap-1" title="전체 가중치 합이 100이 되어야 합니다.">
+                                <AlertCircle size={12} />
+                                {getTotalWeight(undefined)}%
+                            </span>
+                        ) : (
+                            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">
+                                <Check size={12} />
+                                100%
+                            </span>
+                        )}
+                    </div>
                     <div className="flex items-center gap-2">
                         <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
                             <button
