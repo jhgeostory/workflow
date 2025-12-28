@@ -206,7 +206,10 @@ export function generateWeeklyReport(projects: Project[]) {
         const endDate = endOfWeek(today, { weekStartsOn: 1 });   // Sunday
         const weekNum = getWeekOfMonth(today);
         const title = `주간 업무 보고서 (${format(today, 'yyyy년 M월')} ${weekNum}주차)`;
-        const filename = `주간업무보고_${format(today, 'yyyyMMdd')}.docx`;
+        let filename = `주간업무보고_${format(today, 'yyyyMMdd')}.docx`;
+        if (projects.length === 1) {
+            filename = `${projects[0].name}_${filename}`;
+        }
 
         generateReport(title, projects, startDate, endDate, filename);
     } catch (e) {
@@ -219,7 +222,10 @@ export function generateMonthlyReport(projects: Project[]) {
     const startDate = startOfMonth(today);
     const endDate = endOfMonth(today);
     const title = `월간 업무 보고서 (${format(today, 'yyyy년 M월')})`;
-    const filename = `월간업무보고_${format(today, 'yyyyMM')}.docx`;
+    let filename = `월간업무보고_${format(today, 'yyyyMM')}.docx`;
+    if (projects.length === 1) {
+        filename = `${projects[0].name}_${filename}`;
+    }
 
     generateReport(title, projects, startDate, endDate, filename);
 }
