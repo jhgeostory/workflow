@@ -15,8 +15,10 @@ export function GanttChart({ items, startDate, endDate }: GanttChartProps) {
     const totalDays = Math.max(1, differenceInDays(end, start) + 1);
 
     // Config
-    const headerHeight = 40;
+    const headerHeight = 60;
     const rowHeight = 40;
+
+    // Calculations
 
     // Calculations
     const isFit = viewMode === 'fit';
@@ -26,11 +28,30 @@ export function GanttChart({ items, startDate, endDate }: GanttChartProps) {
 
     const dates = useMemo(() => {
         const result = [];
-        // Only generate dates if not too many? In Fit mode, maybe skip rendering grid lines for every day if too crowded?
-        // For now render all.
         for (let i = 0; i < totalDays; i++) {
             result.push(addDays(start, i));
         }
+        return result;
+    }, [start, totalDays]);
+
+    const months = useMemo(() => {
+        const result = [];
+        if (totalDays === 0) return [];
+
+        let currentMonth = format(start, 'yyyy-MM');
+        let startIdx = 0;
+
+        for (let i = 0; i < totalDays; i++) {
+            const d = addDays(start, i);
+            const mLabel = format(d, 'yyyy-MM');
+            if (mLabel !== currentMonth) {
+                result.push({ label: currentMonth, startIdx, duration: i - startIdx });
+                currentMonth = mLabel;
+                startIdx = i;
+            }
+        }
+        // Last month
+        result.push({ label: currentMonth, startIdx, duration: totalDays - startIdx });
         return result;
     }, [start, totalDays]);
 
@@ -76,26 +97,43 @@ export function GanttChart({ items, startDate, endDate }: GanttChartProps) {
 
             <div className="overflow-auto border border-slate-200 rounded-lg bg-white shadow-sm">
                 <div style={{ width: chartWidth, height: chartHeight, position: 'relative' }}>
-                    {/* Grid Background */}
-                    <div className="absolute inset-0 flex">
-                        {dates.map((d, i) => {
-                            // In Fit mode, if simple day grid is too dense, maybe hide some?
-                            // For prototype, just render.
-                            const left = isFit ? `${(i / totalDays) * 100}%` : i * 30;
-                            const width = isFit ? `${(1 / totalDays) * 100}%` : 30;
+                    {/* Grid Background & Headers */}
+                    <div className="absolute inset-0">
+                        {/* Month Header Row (Top 0-25px) */}
+                        <div className="absolute top-0 left-0 right-0 h-[25px] border-b border-slate-200 bg-slate-50">
+                            {months.map((m, i) => {
+                                const left = isFit ? `${(m.startIdx / totalDays) * 100}%` : m.startIdx * 30;
+                                const width = isFit ? `${(m.duration / totalDays) * 100}%` : m.duration * 30;
+                                return (
+                                    <div key={i} className="absolute top-0 h-full border-r border-slate-300 flex items-center justify-center text-[11px] font-bold text-slate-600 truncate px-1"
+                                        style={{ left, width }}
+                                        title={m.label}
+                                    >
+                                        {m.label}
+                                    </div>
+                                );
+                            })}
+                        </div>
 
-                            return (
-                                <div key={i}
-                                    className="absolute top-0 bottom-0 border-r border-slate-100 box-border flex flex-col items-center justify-start pt-2 text-[10px] text-slate-400 truncate"
-                                    style={{ left: left, width: width }}
-                                >
-                                    {(!isFit || totalDays < 60 || i % 5 === 0) && format(d, 'd')}
-                                </div>
-                            );
-                        })}
+                        {/* Day Grid & Labels (Top 25px - Bottom) */}
+                        <div className="absolute top-[25px] bottom-0 left-0 right-0">
+                            {dates.map((d, i) => {
+                                const left = isFit ? `${(i / totalDays) * 100}%` : i * 30;
+                                const width = isFit ? `${(1 / totalDays) * 100}%` : 30;
+                                // Hide day labels if too small in Fit mode
+                                const showLabel = !isFit || totalDays < 40 || (totalDays < 80 && i % 2 === 0) || i % 5 === 0;
+
+                                return (
+                                    <div key={i}
+                                        className="absolute top-0 bottom-0 border-r border-slate-100 box-border flex flex-col items-center justify-start pt-1 text-[10px] text-slate-400"
+                                        style={{ left: left, width: width }}
+                                    >
+                                        {showLabel && format(d, 'd')}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
-
-                    {/* Header Month Labels could go here overlaying grid */}
 
                     {/* Items */}
                     <div style={{ paddingTop: headerHeight, position: 'relative' }}>
