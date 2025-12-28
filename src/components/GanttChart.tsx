@@ -136,7 +136,7 @@ export function GanttChart({ items, startDate, endDate }: GanttChartProps) {
                     </div>
 
                     {/* Items */}
-                    <div style={{ paddingTop: headerHeight, position: 'relative' }}>
+                    <div style={{ position: 'relative' }}>
                         {items.map((item, index) => {
                             const itemStart = item.planStartDate;
                             const itemEnd = item.planEndDate;
@@ -147,7 +147,7 @@ export function GanttChart({ items, startDate, endDate }: GanttChartProps) {
                             return (
                                 <div key={item.id} className="absolute h-6 rounded-md shadow-sm border border-white/50 text-xs text-white px-2 flex items-center overflow-hidden whitespace-nowrap"
                                     style={{
-                                        top: (index * rowHeight) + ((rowHeight - 24) / 2),
+                                        top: headerHeight + (index * rowHeight) + ((rowHeight - 24) / 2),
                                         left: left,
                                         width: width,
                                         backgroundColor: item.status === 'Progress' ? '#4ade80' : item.status === 'Complete' ? '#94a3b8' : '#60a5fa'

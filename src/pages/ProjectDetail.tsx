@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/useProjectStore';
 import { type ProjectStatus, type ItemStatus, type ExecutionItem } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
-import { ArrowLeft, Plus, Check, Trash2, Pencil, Calendar, FileDown, CornerDownRight } from 'lucide-react';
+import { ArrowLeft, Plus, Check, Trash2, Pencil, Calendar, FileDown, CornerDownRight, X } from 'lucide-react';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { cn } from '../lib/utils';
 import { ProgressCharts } from '../components/ProgressCharts';
@@ -93,6 +93,22 @@ export default function ProjectDetail() {
     });
     const [isAddingItem, setIsAddingItem] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+
+    // Project Date Editing
+    const [isEditingDates, setIsEditingDates] = useState(false);
+    const [tempDates, setTempDates] = useState({ startDate: '', endDate: '' });
+
+    const startEditDates = () => {
+        if (!project) return;
+        setTempDates({ startDate: project.startDate, endDate: project.endDate });
+        setIsEditingDates(true);
+    };
+
+    const saveEditDates = () => {
+        if (!project) return;
+        updateProject(project.id, { startDate: tempDates.startDate, endDate: tempDates.endDate });
+        setIsEditingDates(false);
+    };
 
     const projectTree = useMemo(() => {
         if (!project) return [];
@@ -338,11 +354,41 @@ export default function ProjectDetail() {
                         <div className="flex items-center gap-3 mb-2">
                             <h1 className="text-2xl font-bold text-slate-900">{project.name}</h1>
                             <StatusBadge status={project.status} />
+                            {isEditingDates && <span className="text-xs font-normal text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">기간 수정 중</span>}
                         </div>
-                        <div className="text-slate-500 text-sm flex items-center gap-2">
-                            <Calendar size={14} />
-                            {project.startDate} ~ {project.endDate}
-                        </div>
+
+                        {isEditingDates ? (
+                            <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                                <span className="text-slate-500 text-sm"><Calendar size={14} /></span>
+                                <input
+                                    type="date"
+                                    value={tempDates.startDate}
+                                    onChange={e => setTempDates(prev => ({ ...prev, startDate: e.target.value }))}
+                                    className="px-2 py-1 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                                <span className="text-slate-400">~</span>
+                                <input
+                                    type="date"
+                                    value={tempDates.endDate}
+                                    onChange={e => setTempDates(prev => ({ ...prev, endDate: e.target.value }))}
+                                    className="px-2 py-1 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                                <button onClick={saveEditDates} className="bg-green-50 text-green-600 p-1 rounded hover:bg-green-100" title="저장">
+                                    <Check size={14} />
+                                </button>
+                                <button onClick={() => setIsEditingDates(false)} className="bg-red-50 text-red-600 p-1 rounded hover:bg-red-100" title="취소">
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="text-slate-500 text-sm flex items-center gap-2 group cursor-pointer" onClick={startEditDates} title="클릭하여 기간 수정">
+                                <Calendar size={14} />
+                                <span className="group-hover:text-blue-600 transition-colors duration-200">
+                                    {project.startDate} ~ {project.endDate}
+                                </span>
+                                <Pencil size={12} className="opacity-0 group-hover:opacity-100 text-slate-400 group-hover:text-blue-500 transition-opacity duration-200" />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-2">
