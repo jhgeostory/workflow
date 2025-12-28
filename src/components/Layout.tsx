@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, Menu, X } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Menu, X, Calendar } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -10,6 +10,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     const navItems = [
         { href: '/', label: '대시보드', icon: LayoutDashboard },
         { href: '/projects', label: '프로젝트 관리', icon: FolderKanban },
+        { href: '/schedule', label: '스케줄', icon: Calendar },
     ];
 
     return (
