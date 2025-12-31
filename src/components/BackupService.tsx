@@ -1,10 +1,8 @@
-import React, { useRef } from 'react';
 import { useProjectStore } from '../store/useProjectStore';
-import { Download, Upload } from 'lucide-react';
+import { Download } from 'lucide-react';
 
 export const BackupService = () => {
     const store = useProjectStore();
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleExport = () => {
         const data = {
@@ -23,32 +21,6 @@ export const BackupService = () => {
         URL.revokeObjectURL(url);
     };
 
-    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const json = JSON.parse(event.target?.result as string);
-                if (Array.isArray(json.projects)) {
-                    if (confirm(`현재 데이터가 ${json.projects.length}개의 프로젝트로 덮어씌워집니다. 진행하시겠습니까?`)) {
-                        store.importData(json);
-                        alert('데이터 복구가 완료되었습니다.');
-                    }
-                } else {
-                    alert('올바르지 않은 백업 파일 형식입니다.');
-                }
-            } catch (err) {
-                console.error(err);
-                alert('파일을 읽는 중 오류가 발생했습니다.');
-            }
-            // Reset input
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        };
-        reader.readAsText(file);
-    };
-
     return (
         <div className="flex gap-2">
             <button
@@ -56,22 +28,31 @@ export const BackupService = () => {
                 className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 text-xs font-medium transition-colors"
                 title="데이터 내보내기"
             >
-                <Download size={14} /> 백업
+                <Download size={14} /> 백업 (JSON)
             </button>
             <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 text-xs font-medium transition-colors"
-                title="데이터 불러오기"
+                onClick={() => {
+                    if (confirm('로컬 스토리지의 데이터를 DB로 전송하시겠습니까? (중복 데이터는 건너뜁니다)')) {
+                        const localData = localStorage.getItem('pm-storage');
+                        if (localData) {
+                            try {
+                                const parsed = JSON.parse(localData);
+                                if (parsed.state && parsed.state.projects) {
+                                    store.migrateFromLocal(parsed.state.projects);
+                                } else {
+                                    alert('유효한 로컬 데이터가 없습니다.');
+                                }
+                            } catch (e) { alert('로컬 데이터 읽기 실패'); }
+                        } else {
+                            alert('로컬 데이터가 없습니다.');
+                        }
+                    }
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 text-xs font-medium transition-colors"
+                title="로컬 데이터 DB로 전송"
             >
-                <Upload size={14} /> 복구
+                DB 마이그레이션
             </button>
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImport}
-                accept=".json"
-                className="hidden"
-            />
         </div>
     );
 };

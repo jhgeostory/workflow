@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useProjectStore } from './store/useProjectStore';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -6,6 +8,12 @@ import ProjectDetail from './pages/ProjectDetail';
 import Schedule from './pages/Schedule';
 
 function App() {
+  const { fetchProjects } = useProjectStore();
+
+  useEffect(() => {
+    fetchProjects();
+  }, []); // fetchProjects is stable
+
   return (
     <BrowserRouter>
       <Layout>
