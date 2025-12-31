@@ -8,7 +8,7 @@ interface ProjectState {
     error: string | null;
 
     fetchProjects: () => Promise<void>;
-    addProject: (project: Omit<Project, 'id' | 'items' | 'issues'>) => Promise<void>;
+    addProject: (project: Omit<Project, 'id'>) => Promise<void>;
     updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
     deleteProject: (id: string) => Promise<void>;
 
@@ -97,7 +97,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     addProject: async (project) => {
         try {
-            const { error } = await supabase
+            const { data: newProject, error } = await supabase
                 .from('projects')
                 .insert([{
                     name: project.name,
@@ -110,8 +110,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
             if (error) throw error;
 
-            // Refetch or Optimistic Update
-            // For now, simplify by refetching
+            if (project.items && project.items.length > 0) {
+                const itemsToInsert = project.items.map((i) => ({
+                    project_id: newProject.id,
+                    name: i.name,
+                    status: i.status,
+                    weight: i.weight,
+                    plan_start_date: i.planStartDate,
+                    plan_end_date: i.planEndDate,
+                    depth: (i as any).depth || 0
+                }));
+
+                const { error: iError } = await supabase.from('items').insert(itemsToInsert);
+                if (iError) throw iError;
+            }
+
             get().fetchProjects();
         } catch (err: any) {
             set({ error: err.message });
