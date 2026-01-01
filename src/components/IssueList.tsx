@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type { Issue, IssueStatus, IssuePriority } from '../types';
 import { useProjectStore } from '../store/useProjectStore';
-import { Plus, Trash2, CheckCircle, AlertCircle, User } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, AlertCircle, User, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
+import { IssueKanban } from './IssueKanban';
 
 interface IssueListProps {
     projectId: string;
@@ -15,6 +16,7 @@ export function IssueList({ projectId }: IssueListProps) {
     const issues = project?.issues || [];
 
     const [isAdding, setIsAdding] = useState(false);
+    const [view, setView] = useState<'list' | 'board'>('list');
     const [newIssue, setNewIssue] = useState<Partial<Issue>>({
         title: '',
         status: 'Open',
@@ -80,7 +82,25 @@ export function IssueList({ projectId }: IssueListProps) {
     return (
         <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-sm">
             <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-slate-800">이슈 관리</h3>
+                <div className="flex items-center gap-4">
+                    <h3 className="text-xl font-bold text-slate-800">이슈 관리</h3>
+                    <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                        <button
+                            onClick={() => setView('list')}
+                            className={cn("p-1.5 rounded-md transition-all", view === 'list' ? "bg-white shadow text-slate-800" : "text-slate-400 hover:text-slate-600")}
+                            title="리스트 보기"
+                        >
+                            <ListIcon size={16} />
+                        </button>
+                        <button
+                            onClick={() => setView('board')}
+                            className={cn("p-1.5 rounded-md transition-all", view === 'board' ? "bg-white shadow text-slate-800" : "text-slate-400 hover:text-slate-600")}
+                            title="보드 보기"
+                        >
+                            <LayoutGrid size={16} />
+                        </button>
+                    </div>
+                </div>
                 <button
                     onClick={() => setIsAdding(!isAdding)}
                     className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium transition-colors shadow-sm"
@@ -166,65 +186,69 @@ export function IssueList({ projectId }: IssueListProps) {
                 </form>
             )}
 
-            <div className="space-y-3">
-                {issues.length === 0 ? (
-                    <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                        등록된 이슈가 없습니다.
-                    </div>
-                ) : (
-                    issues.map(issue => (
-                        <div key={issue.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:border-blue-300 transition-colors group">
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="flex items-start gap-3">
-                                    <div className={cn("mt-1", issue.status === 'Resolved' ? "text-green-500" : "text-red-500")}>
-                                        {issue.status === 'Resolved' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-                                    </div>
-                                    <div>
-                                        <h4 className={cn("text-base font-semibold text-slate-900", issue.status === 'Resolved' && "line-through text-slate-500")}>
-                                            {issue.title}
-                                        </h4>
-                                        <div className="text-sm text-slate-500 mt-1 flex items-center gap-3">
-                                            <span>{issue.createdAt}</span>
-                                            {issue.assignee && (
-                                                <span className="flex items-center gap-1 text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-xs">
-                                                    <User size={12} /> {issue.assignee}
-                                                </span>
-                                            )}
+            {view === 'board' ? (
+                <IssueKanban projectId={projectId} issues={issues} />
+            ) : (
+                <div className="space-y-3">
+                    {issues.length === 0 ? (
+                        <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                            등록된 이슈가 없습니다.
+                        </div>
+                    ) : (
+                        issues.map(issue => (
+                            <div key={issue.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:border-blue-300 transition-colors group">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex items-start gap-3">
+                                        <div className={cn("mt-1", issue.status === 'Resolved' ? "text-green-500" : "text-red-500")}>
+                                            {issue.status === 'Resolved' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+                                        </div>
+                                        <div>
+                                            <h4 className={cn("text-base font-semibold text-slate-900", issue.status === 'Resolved' && "line-through text-slate-500")}>
+                                                {issue.title}
+                                            </h4>
+                                            <div className="text-sm text-slate-500 mt-1 flex items-center gap-3">
+                                                <span>{issue.createdAt}</span>
+                                                {issue.assignee && (
+                                                    <span className="flex items-center gap-1 text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-xs">
+                                                        <User size={12} /> {issue.assignee}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold border", getPriorityColor(issue.priority))}>
+                                            {issue.priority}
+                                        </span>
+                                        <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold border", getStatusColor(issue.status))}>
+                                            {issue.status}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold border", getPriorityColor(issue.priority))}>
-                                        {issue.priority}
-                                    </span>
-                                    <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold border", getStatusColor(issue.status))}>
-                                        {issue.status}
-                                    </span>
+
+                                {issue.description && (
+                                    <p className="text-sm text-slate-600 ml-8 mb-3 whitespace-pre-wrap">{issue.description}</p>
+                                )}
+
+                                <div className="flex justify-end gap-2 ml-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => handleResolve(issue)}
+                                        className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors"
+                                    >
+                                        {issue.status === 'Resolved' ? '재오픈' : '해결 완료'}
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(issue.id)}
+                                        className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors flex items-center gap-1"
+                                    >
+                                        <Trash2 size={12} /> 삭제
+                                    </button>
                                 </div>
                             </div>
-
-                            {issue.description && (
-                                <p className="text-sm text-slate-600 ml-8 mb-3 whitespace-pre-wrap">{issue.description}</p>
-                            )}
-
-                            <div className="flex justify-end gap-2 ml-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                    onClick={() => handleResolve(issue)}
-                                    className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors"
-                                >
-                                    {issue.status === 'Resolved' ? '재오픈' : '해결 완료'}
-                                </button>
-                                <button
-                                    onClick={() => handleDelete(issue.id)}
-                                    className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors flex items-center gap-1"
-                                >
-                                    <Trash2 size={12} /> 삭제
-                                </button>
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
+                        ))
+                    )}
+                </div>
+            )}
         </div>
     );
 }

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/useProjectStore';
 import { type ProjectStatus, type ItemStatus, type ExecutionItem } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
-import { ArrowLeft, Plus, Check, Trash2, Pencil, Calendar, FileDown, CornerDownRight, X } from 'lucide-react';
+import { ArrowLeft, Plus, Check, Trash2, Pencil, Calendar, FileDown, CornerDownRight, X, AlertCircle, List, StretchHorizontal } from 'lucide-react';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { cn } from '../lib/utils';
 import { ProgressCharts } from '../components/ProgressCharts';
@@ -14,7 +14,9 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { SortableRow } from '../components/SortableRow';
 import { GanttChart } from '../components/GanttChart';
 import { IssueList } from '../components/IssueList';
-import { List, StretchHorizontal, AlertCircle } from 'lucide-react'; // StretchHorizontal as Gantt icon
+import { BurndownChart } from '../components/BurndownChart';
+
+// ...
 
 const STAGES: ProjectStatus[] = ['Proposal', 'Contract', 'Execution', 'Termination'];
 
@@ -440,14 +442,10 @@ export default function ProjectDetail() {
             {/* Project Dashboard Section */}
             <div className="space-y-4">
                 <h3 className="text-xl font-bold text-slate-800 px-1">프로젝트 공정 현황</h3>
-                <ProgressCharts items={project.items} />
-                {/* Note: Pass raw items to charts? Charts use filter by date. 
-                    If charts need Tree logic, we should pass `projectTree` flattened? 
-                    Charts just filter items. If sub-items have dates, they are counted.
-                    If parent has date, it is counted.
-                    If Parent date range covers Child date range, both counted? Yes.
-                    This is fine.
-                */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <ProgressCharts items={project.items} />
+                    <BurndownChart items={project.items} startDate={project.startDate} endDate={project.endDate} />
+                </div>
             </div>
 
             {/* Execution Items Area */}
